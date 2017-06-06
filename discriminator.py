@@ -23,6 +23,7 @@ def linear(input_, output_size, scope=None):
     if not shape[1]:
         raise ValueError("Linear expects shape[1] of arguments: %s" % str(shape))
     input_size = shape[1]
+    batch_size = shape[0]
 
     # Now the computation.
     with tf.variable_scope(scope or "SimpleLinear"):
@@ -61,6 +62,7 @@ class Discriminator(object):
         # Placeholders for input, output and dropout
         self.input_x = tf.placeholder(tf.int32, [None, sequence_length], name="input_x")
         self.input_y = tf.placeholder(tf.float32, [None, num_classes], name="input_y")
+        self.input_logprob = tf.placeholder(tf.float32, [None], name="input_logprob")
         self.dropout_keep_prob = tf.placeholder(tf.float32, name="dropout_keep_prob")
 
         # Keeping track of l2 regularization loss (optional)
@@ -115,14 +117,26 @@ class Discriminator(object):
                 self.h_drop = tf.nn.dropout(self.h_highway, self.dropout_keep_prob)
 
             # Final (unnormalized) scores and predictions
+            # with tf.name_scope("output"):
+            #     W = tf.Variable(tf.truncated_normal([num_filters_total, num_classes], stddev=0.1), name="W")
+            #     b = tf.Variable(tf.constant(0.1, shape=[num_classes]), name="b")
+            #     l2_loss += tf.nn.l2_loss(W)
+            #     l2_loss += tf.nn.l2_loss(b)
+            #     self.scores = tf.nn.xw_plus_b(self.h_drop, W, b, name="scores")
+            #     self.ypred_for_auc = tf.nn.softmax(self.scores)
+            #     self.predictions = tf.argmax(self.scores, 1, name="predictions")
+
             with tf.name_scope("output"):
-                W = tf.Variable(tf.truncated_normal([num_filters_total, num_classes], stddev=0.1), name="W")
-                b = tf.Variable(tf.constant(0.1, shape=[num_classes]), name="b")
-                l2_loss += tf.nn.l2_loss(W)
-                l2_loss += tf.nn.l2_loss(b)
-                self.scores = tf.nn.xw_plus_b(self.h_drop, W, b, name="scores")
-                self.ypred_for_auc = tf.nn.softmax(self.scores)
-                self.predictions = tf.argmax(self.scores, 1, name="predictions")
+                W = tf.Variable(tf.truncated_normal([num_filters_total, 1], stddev=0.1), name="W")
+                b = tf.Variable(tf.constant(0.1, shape=[1]), name="b")
+                # l2_loss += tf.nn.l2_loss(W)
+                # l2_loss += tf.nn.l2_loss(b)
+                self.score = tf.nn.xw_plus_b(self.h_drop, W, b, name="score")
+                self.aug_score = tf.nn.sigmoid(self.score - self.input_logprob)
+                self.ypred_for_auc = tf.concat([1-self.aug_score,self.aug_score],axis=1)
+                lratio = tf.log(self.ypred_for_auc[:,1] / self.ypred_for_auc[:,0])
+                self.scores = tf.concat([tf.zeros_like(self.score),tf.expand_dims(lratio,-1)],axis=1)
+                self.predictions = tf.argmax(self.ypred_for_auc, 1, name="predictions")
 
             # CalculateMean cross-entropy loss
             with tf.name_scope("loss"):

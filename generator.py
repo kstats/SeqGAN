@@ -1,4 +1,5 @@
 import tensorflow as tf
+import numpy as np
 from tensorflow.python.ops import tensor_array_ops, control_flow_ops
 
 
@@ -124,6 +125,12 @@ class Generator(object):
     def pretrain_step(self, sess, x):
         outputs = sess.run([self.pretrain_updates, self.pretrain_loss], feed_dict={self.x: x})
         return outputs
+
+    def get_logprobs(self, sess, x):
+        g_probs = sess.run(self.g_predictions, feed_dict={self.x: x})    # batch_size x seq_length x vocab_size
+        import pdb; pdb.set_trace()
+        g_logprobs = np.log(np.choose(self.x, np.transpose(g_probs,[2,0,1])))         # batch_size x seq_length
+        return g_logprobs.sum(axis=1)
 
     def init_matrix(self, shape):
         return tf.random_normal(shape, stddev=0.1)
