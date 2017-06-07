@@ -129,7 +129,9 @@ class Generator(object):
     def get_logprobs(self, sess, x):
         g_probs = sess.run(self.g_predictions, feed_dict={self.x: x})    # batch_size x seq_length x vocab_size
         import pdb; pdb.set_trace()
-        g_logprobs = np.log(np.choose(self.x, np.transpose(g_probs,[2,0,1])))         # batch_size x seq_length
+        temp = (np.arange(g_probs.shape()[2]) == x[:, :, None]).astype(int)
+        test2 = np.max(g_probs * temp, axis=2)
+        g_logprobs = np.log(test2)         # batch_size x seq_length
         return g_logprobs.sum(axis=1)
 
     def init_matrix(self, shape):
