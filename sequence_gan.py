@@ -109,7 +109,7 @@ def main():
     print 'Start pre-training...'
     log.write('pre-training...\n')
     # for epoch in xrange(PRE_EPOCH_NUM):
-    for epoch in xrange(1):
+    for epoch in xrange(70):
         loss = pre_train_epoch(sess, generator, gen_data_loader)
         if epoch % 5 == 0:
             generate_samples(sess, generator, BATCH_SIZE, generated_num, eval_file)
@@ -122,7 +122,8 @@ def main():
     print 'Start pre-training discriminator...'
     # Train 3 epoch on the generated data and do this for 50 times
     # for _ in range(1):
-    for _ in range(50):
+    for i in range(50):
+        print 'Round %d of discriminator pre-training' % i
         generate_samples(sess, generator, BATCH_SIZE, generated_num, negative_file)
         dis_data_loader.load_train_data(positive_file, negative_file)
         for _ in range(3):

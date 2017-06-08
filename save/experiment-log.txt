@@ -1,2 +1,17 @@
 pre-training...
-epoch:	0	nll:	10.1863
+epoch:	0	nll:	10.1951
+epoch:	5	nll:	9.5082
+epoch:	10	nll:	9.30457
+epoch:	15	nll:	9.22066
+epoch:	20	nll:	9.15426
+epoch:	25	nll:	9.13779
+epoch:	30	nll:	9.11088
+epoch:	35	nll:	9.12035
+epoch:	40	nll:	9.11209
+epoch:	45	nll:	9.11013
+epoch:	50	nll:	9.12297
+epoch:	55	nll:	9.11099
+epoch:	60	nll:	9.10189
+epoch:	65	nll:	9.09206
+adversarial training...
+epoch:	0	nll:	13.9743

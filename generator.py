@@ -1,4 +1,5 @@
 import tensorflow as tf
+import time
 import numpy as np
 from tensorflow.python.ops import tensor_array_ops, control_flow_ops
 
