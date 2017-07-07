@@ -58,7 +58,7 @@ class Discriminator(object):
 
     def __init__(
             self, sequence_length, num_classes, vocab_size,
-            embedding_size, filter_sizes, num_filters, l2_reg_lambda=0.0):
+            embedding_size, filter_sizes, num_filters, l2_reg_lambda=0.0, _EPSILON=0.05):
         # Placeholders for input, output and dropout
         self.input_x = tf.placeholder(tf.int32, [None, sequence_length], name="input_x")
         self.input_y = tf.placeholder(tf.float32, [None, num_classes], name="input_y")
@@ -67,6 +67,7 @@ class Discriminator(object):
 
         # Keeping track of l2 regularization loss (optional)
         l2_loss = tf.constant(0.0)
+        epsilon = tf.constant(_EPSILON)
         
         with tf.variable_scope('discriminator'):
 
@@ -132,10 +133,12 @@ class Discriminator(object):
                 # l2_loss += tf.nn.l2_loss(W)
                 # l2_loss += tf.nn.l2_loss(b)
                 self.score = tf.nn.xw_plus_b(self.h_drop, W, b, name="score")
-                self.aug_score = tf.nn.sigmoid(self.score - self.input_logprob)
-                self.ypred_for_auc = tf.concat([1-self.aug_score,self.aug_score],axis=1)
-                lratio = tf.log(self.ypred_for_auc[:,1] / self.ypred_for_auc[:,0])
-                self.scores = tf.concat([tf.zeros_like(self.score),tf.expand_dims(lratio,-1)],axis=1)
+                self.aug_score = tf.nn.sigmoid(self.score - tf.expand_dims(self.input_logprob,1))
+                self.clipped_aug_score = tf.clip_by_value(self.aug_score, epsilon, 1 - epsilon)
+                self.ypred_for_auc = tf.concat([1-self.clipped_aug_score,self.clipped_aug_score],axis=1)
+                # lratio = tf.log(self.ypred_for_auc[:,1] / self.ypred_for_auc[:,0])
+                # self.scores = tf.concat([tf.zeros_like(self.score),tf.expand_dims(lratio,-1)],axis=1)
+                self.scores = tf.log(self.ypred_for_auc)
                 self.predictions = tf.argmax(self.ypred_for_auc, 1, name="predictions")
 
             # CalculateMean cross-entropy loss
@@ -145,5 +148,5 @@ class Discriminator(object):
 
         self.params = [param for param in tf.trainable_variables() if 'discriminator' in param.name]
         d_optimizer = tf.train.AdamOptimizer(1e-4)
-        grads_and_vars = d_optimizer.compute_gradients(self.loss, self.params, aggregation_method=2)
-        self.train_op = d_optimizer.apply_gradients(grads_and_vars)
+        self.grads_and_vars = d_optimizer.compute_gradients(self.loss, self.params, aggregation_method=2)
+        self.train_op = d_optimizer.apply_gradients(self.grads_and_vars)

@@ -81,6 +81,7 @@ class ROLLOUT(object):
                 feed = {self.x: input_x, self.given_num: given_num}
                 samples = sess.run(self.gen_x, feed)
                 feed = {discriminator.input_x: samples, discriminator.input_logprob: self.lstm.get_logprobs(sess,samples), discriminator.dropout_keep_prob: 1.0}
+                # import pdb; pdb.set_trace()
                 ypred_for_auc = sess.run(discriminator.ypred_for_auc, feed)
                 ypred = np.array([item[1] for item in ypred_for_auc])
                 if i == 0:

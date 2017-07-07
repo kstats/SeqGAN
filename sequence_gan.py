@@ -108,8 +108,8 @@ def main():
     #  pre-train generator
     print 'Start pre-training...'
     log.write('pre-training...\n')
-    # for epoch in xrange(PRE_EPOCH_NUM):
-    for epoch in xrange(70):
+    for epoch in xrange(PRE_EPOCH_NUM):
+    # for epoch in xrange(10):
         loss = pre_train_epoch(sess, generator, gen_data_loader)
         if epoch % 5 == 0:
             generate_samples(sess, generator, BATCH_SIZE, generated_num, eval_file)
@@ -121,7 +121,7 @@ def main():
 
     print 'Start pre-training discriminator...'
     # Train 3 epoch on the generated data and do this for 50 times
-    # for _ in range(1):
+    # for i in range(1):
     for i in range(50):
         print 'Round %d of discriminator pre-training' % i
         generate_samples(sess, generator, BATCH_SIZE, generated_num, negative_file)
@@ -136,8 +136,10 @@ def main():
                     discriminator.input_logprob: generator.get_logprobs(sess,x_batch),
                     discriminator.dropout_keep_prob: dis_dropout_keep_prob
                 }
+                # import pdb; pdb.set_trace()
                 _ = sess.run(discriminator.train_op, feed)
 
+    # import pdb; pdb.set_trace()
     rollout = ROLLOUT(generator, 0.8)
 
     print '#########################################################################'
@@ -148,6 +150,8 @@ def main():
         for it in range(1):
             samples = generator.generate(sess)
             rewards = rollout.get_reward(sess, samples, 16, discriminator)
+            print 'rewards are:'
+            print rewards
             feed = {generator.x: samples, generator.rewards: rewards}
             _ = sess.run(generator.g_updates, feed_dict=feed)
 
