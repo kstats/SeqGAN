@@ -134,7 +134,7 @@ def main():
                 }
                 _ = sess.run(discriminator.train_op, feed)
 
-    rollout = ROLLOUT(generator, 0.8)
+    rollout = ROLLOUT(generator, 0.)
 
     print '#########################################################################'
     print 'Start Adversarial Training...'
