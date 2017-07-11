@@ -76,8 +76,8 @@ class ROLLOUT(object):
 
     def get_reward(self, sess, input_x, rollout_num, discriminator):
         rewards = np.zeros(shape=(64,20))
-        rewards.fill(2)
-        # rewards.fill(2.94443631)
+        # rewards.fill(2)
+        rewards.fill(2.94443631)
         return rewards
     # def get_reward(self, sess, input_x, rollout_num, discriminator):
     #     rewards = []

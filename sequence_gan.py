@@ -7,6 +7,9 @@ from discriminator import Discriminator
 from rollout import ROLLOUT
 from target_lstm import TARGET_LSTM
 import cPickle
+import getopt
+import sys
+import os.path
 
 #########################################################################################
 #  Generator  Hyper-parameters
