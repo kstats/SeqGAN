@@ -7,6 +7,10 @@ from discriminator import Discriminator
 from rollout import ROLLOUT
 from target_lstm import TARGET_LSTM
 import cPickle
+import getopt
+import sys
+import os.path
+
 
 #########################################################################################
 #  Generator  Hyper-parameters
@@ -37,6 +41,10 @@ positive_file = 'save/real_data.txt'
 negative_file = 'save/generator_sample.txt'
 eval_file = 'save/eval_file.txt'
 generated_num = 10000
+
+
+save_every = 5
+default_checkpoint_folder = "./checkpoints"
 
 
 def generate_samples(sess, trainable_model, batch_size, generated_num, output_file):
@@ -79,9 +87,20 @@ def pre_train_epoch(sess, trainable_model, data_loader):
 
 
 def main():
+    optlist, args = getopt.gnu_getopt(sys.argv, 'd:')
+    opts = dict(optlist)
+    checkpoint_folder = opts['-d'] if '-d' in opts else default_checkpoint_folder
+
     random.seed(SEED)
     np.random.seed(SEED)
     assert START_TOKEN == 0
+
+    global_step =tf.Variable(tf.zeros([1], dtype=tf.int32), name="global_step")
+    local_step =tf.Variable(tf.zeros([1], dtype=tf.int32), name="local_step")
+    increment_global_step_op = tf.assign(global_step, global_step + 1)
+    increment_local_step_op = tf.assign(local_step, local_step+1)
+    reset_local_op = tf.assign(local_step, [0])
+
 
     gen_data_loader = Gen_Data_loader(BATCH_SIZE)
     likelihood_data_loader = Gen_Data_loader(BATCH_SIZE) # For testing
@@ -89,89 +108,59 @@ def main():
     dis_data_loader = Dis_dataloader(BATCH_SIZE)
 
     generator = Generator(vocab_size, BATCH_SIZE, EMB_DIM, HIDDEN_DIM, SEQ_LENGTH, START_TOKEN)
+    #import pdb; pdb.set_trace()
     target_params = cPickle.load(open('save/target_params.pkl'))
     target_lstm = TARGET_LSTM(vocab_size, BATCH_SIZE, EMB_DIM, HIDDEN_DIM, SEQ_LENGTH, START_TOKEN, target_params) # The oracle model
 
-    discriminator = Discriminator(sequence_length=20, num_classes=2, vocab_size=vocab_size, embedding_size=dis_embedding_dim, 
+    discriminator = Discriminator(sequence_length=20, num_classes=2, vocab_size=vocab_size, embedding_size=dis_embedding_dim,
                                 filter_sizes=dis_filter_sizes, num_filters=dis_num_filters, l2_reg_lambda=dis_l2_reg_lambda)
 
+    #import pdb; pdb.set_trace()
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
     sess = tf.Session(config=config)
-    sess.run(tf.global_variables_initializer())
+    saver = tf.train.Saver()
+
+    log = open('save/experiment-log.txt', 'w')
+
+    if os.path.isfile(checkpoint_folder + "/checkpoint"):
+        saver.restore(sess, checkpoint_folder + "/model.ckpt")
+        #TODO see if we can reduce this down
+        # First, use the oracle model to provide the positive examples, which are sampled from the oracle data distribution
+        #generate_samples(sess, target_lstm, BATCH_SIZE, generated_num, positive_file)
+    else:
+        sess.run(tf.global_variables_initializer())
 
     # First, use the oracle model to provide the positive examples, which are sampled from the oracle data distribution
     generate_samples(sess, target_lstm, BATCH_SIZE, generated_num, positive_file)
     gen_data_loader.create_batches(positive_file)
 
-    log = open('save/experiment-log.txt', 'w')
     #  pre-train generator
-    print 'Start pre-training...'
-    log.write('pre-training...\n')
-    for epoch in xrange(PRE_EPOCH_NUM):
-    # for epoch in xrange(10):
-        loss = pre_train_epoch(sess, generator, gen_data_loader)
-        if epoch % 5 == 0:
-            generate_samples(sess, generator, BATCH_SIZE, generated_num, eval_file)
-            likelihood_data_loader.create_batches(eval_file)
-            test_loss = target_loss(sess, target_lstm, likelihood_data_loader)
-            print 'pre-train epoch ', epoch, 'test_loss ', test_loss
-            buffer = 'epoch:\t'+ str(epoch) + '\tnll:\t' + str(test_loss) + '\n'
-            log.write(buffer)
+    if sess.run(global_step) == 0:
+        print 'Start pre-training...'
+        log.write('pre-training...\n')
+        for epoch in xrange(PRE_EPOCH_NUM - sess.run(local_step)):
+        # for epoch in xrange(10):
+            loss = pre_train_epoch(sess, generator, gen_data_loader)
+            if epoch % 5 == 0:
+                generate_samples(sess, generator, BATCH_SIZE, generated_num, eval_file)
+                likelihood_data_loader.create_batches(eval_file)
+                test_loss = target_loss(sess, target_lstm, likelihood_data_loader)
+                print 'pre-train epoch ', epoch, 'test_loss ', test_loss
+                buffer = 'epoch:\t'+ str(epoch) + '\tnll:\t' + str(test_loss) + '\n'
+                log.write(buffer)
+            sess.run(increment_local_step_op)
 
-    print 'Start pre-training discriminator...'
-    # Train 3 epoch on the generated data and do this for 50 times
-    # for i in range(1):
-    for i in range(50):
-        print 'Round %d of discriminator pre-training' % i
-        generate_samples(sess, generator, BATCH_SIZE, generated_num, negative_file)
-        dis_data_loader.load_train_data(positive_file, negative_file)
-        for _ in range(3):
-            dis_data_loader.reset_pointer()
-            for it in xrange(dis_data_loader.num_batch):
-                x_batch, y_batch = dis_data_loader.next_batch()
-                feed = {
-                    discriminator.input_x: x_batch,
-                    discriminator.input_y: y_batch,
-                    discriminator.input_logprob: generator.get_logprobs(sess,x_batch),
-                    discriminator.dropout_keep_prob: dis_dropout_keep_prob
-                }
-                # import pdb; pdb.set_trace()
-                _ = sess.run(discriminator.train_op, feed)
-
-    # import pdb; pdb.set_trace()
-    rollout = ROLLOUT(generator, 0.8)
-
-    print '#########################################################################'
-    print 'Start Adversarial Training...'
-    log.write('adversarial training...\n')
-    for total_batch in range(TOTAL_BATCH):
-        # Train the generator for one step
-        for it in range(1):
-            samples = generator.generate(sess)
-            rewards = rollout.get_reward(sess, samples, 16, discriminator)
-            print 'rewards are:'
-            print rewards
-            feed = {generator.x: samples, generator.rewards: rewards}
-            _ = sess.run(generator.g_updates, feed_dict=feed)
-
-        # Test
-        if total_batch % 5 == 0 or total_batch == TOTAL_BATCH - 1:
-            generate_samples(sess, generator, BATCH_SIZE, generated_num, eval_file)
-            likelihood_data_loader.create_batches(eval_file)
-            test_loss = target_loss(sess, target_lstm, likelihood_data_loader)
-            buffer = 'epoch:\t' + str(total_batch) + '\tnll:\t' + str(test_loss) + '\n'
-            print 'total_batch: ', total_batch, 'test_loss: ', test_loss
-            log.write(buffer)
-
-        # Update roll-out parameters
-        rollout.update_params()
-
-        # Train the discriminator
-        for _ in range(5):
+        sess.run(increment_global_step_op)
+        sess.run(reset_local_op)
+    if sess.run(global_step) == 1:
+        print 'Start pre-training discriminator...'
+        # Train 3 epoch on the generated data and do this for 50 times
+        for i in range(50 - sess.run(local_step)):
+        #for i in range(50):
+            print 'Round %d of discriminator pre-training' % i
             generate_samples(sess, generator, BATCH_SIZE, generated_num, negative_file)
             dis_data_loader.load_train_data(positive_file, negative_file)
-
             for _ in range(3):
                 dis_data_loader.reset_pointer()
                 for it in xrange(dis_data_loader.num_batch):
@@ -182,7 +171,62 @@ def main():
                         discriminator.input_logprob: generator.get_logprobs(sess,x_batch),
                         discriminator.dropout_keep_prob: dis_dropout_keep_prob
                     }
+                    # import pdb; pdb.set_trace()
                     _ = sess.run(discriminator.train_op, feed)
+                    sess.run(increment_local_step_op)
+        sess.run(increment_global_step_op)
+        sess.run(reset_local_op)
+    if sess.run(global_step) == 2:
+
+        # import pdb; pdb.set_trace()
+        rollout = ROLLOUT(generator, 0.8)
+
+        print '#########################################################################'
+        print 'Start Adversarial Training...'
+        log.write('adversarial training...\n')
+        for total_batch in range(TOTAL_BATCH - sess.run(local_step)):
+            if total_batch % save_every == 0:
+                saver.save(sess, default_checkpoint_folder + "/model.ckpt")
+            # Train the generator for one step
+            for it in range(1):
+                samples = generator.generate(sess)
+                rewards = rollout.get_reward(sess, samples, 16, discriminator)
+                print 'rewards are:'
+                print rewards
+                feed = {generator.x: samples, generator.rewards: rewards}
+                _ = sess.run(generator.g_updates, feed_dict=feed)
+
+            # Test
+            if total_batch % 5 == 0 or total_batch == TOTAL_BATCH - 1:
+                generate_samples(sess, generator, BATCH_SIZE, generated_num, eval_file)
+                likelihood_data_loader.create_batches(eval_file)
+                test_loss = target_loss(sess, target_lstm, likelihood_data_loader)
+                buffer = 'epoch:\t' + str(total_batch) + '\tnll:\t' + str(test_loss) + '\n'
+                print 'total_batch: ', total_batch + sess.run(local_step), 'test_loss: ', test_loss
+                log.write(buffer)
+
+            # Update roll-out parameters
+            rollout.update_params()
+
+            # Train the discriminator
+            for _ in range(5):
+                generate_samples(sess, generator, BATCH_SIZE, generated_num, negative_file)
+                dis_data_loader.load_train_data(positive_file, negative_file)
+
+                for _ in range(3):
+                    dis_data_loader.reset_pointer()
+                    for it in xrange(dis_data_loader.num_batch):
+                        x_batch, y_batch = dis_data_loader.next_batch()
+                        feed = {
+                            discriminator.input_x: x_batch,
+                            discriminator.input_y: y_batch,
+                            discriminator.input_logprob: generator.get_logprobs(sess,x_batch),
+                            discriminator.dropout_keep_prob: dis_dropout_keep_prob
+                        }
+                        _ = sess.run(discriminator.train_op, feed)
+
+            sess.run(increment_local_step_op)
+
 
     log.close()
 
