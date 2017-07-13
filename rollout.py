@@ -75,6 +75,7 @@ class ROLLOUT(object):
         self.gen_x = tf.transpose(self.gen_x, perm=[1, 0])  # batch_size x seq_length
 
     def get_reward(self, sess, input_x, rollout_num, discriminator):
+        # rewards = np.random.rand(64,20)
         rewards = np.zeros(shape=(64,20))
         # rewards.fill(2)
         rewards.fill(2.94443631)

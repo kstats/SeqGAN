@@ -20,6 +20,7 @@ SEQ_LENGTH = 20 # sequence length
 START_TOKEN = 0
 PRE_EPOCH_NUM = 120 # supervise (maximum likelihood estimation) epochs
 SEED = 88
+# SEED = 89
 BATCH_SIZE = 64
 
 #########################################################################################
@@ -90,6 +91,7 @@ def main():
 
     random.seed(SEED)
     np.random.seed(SEED)
+    tf.set_random_seed(SEED)
     assert START_TOKEN == 0
 
     global_step =tf.Variable(tf.zeros([1], dtype=tf.int32), name="global_step")
@@ -105,6 +107,7 @@ def main():
 
     generator = Generator(vocab_size, BATCH_SIZE, EMB_DIM, HIDDEN_DIM, SEQ_LENGTH, START_TOKEN)
     target_params = cPickle.load(open('save/target_params.pkl'))
+    # target_params = cPickle.load(open('save/random_target.pkl'))
     target_lstm = TARGET_LSTM(vocab_size, BATCH_SIZE, EMB_DIM, HIDDEN_DIM, SEQ_LENGTH, START_TOKEN, target_params) # The oracle model
 
     discriminator = Discriminator(sequence_length=20, num_classes=2, vocab_size=vocab_size, embedding_size=dis_embedding_dim, 
@@ -168,6 +171,7 @@ def main():
         sess.run(increment_global_step_op)
         sess.run(reset_local_op)
     if sess.run(global_step) == 2:
+        # rollout = ROLLOUT(generator, 0.8)
         rollout = ROLLOUT(generator, 0.)
 
         print '#########################################################################'
@@ -175,7 +179,7 @@ def main():
         log.write('adversarial training...\n')
         for total_batch in range(TOTAL_BATCH - sess.run(local_step)):
             if total_batch % save_every == 0:
-                saver.save(sess, default_checkpoint_folder + "/model.ckpt")
+                saver.save(sess, checkpoint_folder + "/model.ckpt")
             # Train the generator for one step
             for it in range(1):
                 samples = generator.generate(sess)

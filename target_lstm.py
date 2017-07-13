@@ -16,7 +16,7 @@ class TARGET_LSTM(object):
 
         tf.set_random_seed(66)
 
-        with tf.variable_scope('generator'):
+        with tf.variable_scope('target-generator'):
             self.g_embeddings = tf.Variable(self.params[0])
             self.g_params.append(self.g_embeddings)
             self.g_recurrent_unit = self.create_recurrent_unit(self.g_params)  # maps h_tm1 to h_t for generator
