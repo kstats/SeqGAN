@@ -22,6 +22,7 @@ SEQ_LENGTH = 20 # sequence length
 START_TOKEN = 0
 PRE_EPOCH_NUM = 120 # supervise (maximum likelihood estimation) epochs
 SEED = 88
+# SEED = 89
 BATCH_SIZE = 64
 
 #########################################################################################
@@ -43,6 +44,8 @@ negative_file = 'save/generator_sample.txt'
 eval_file = 'save/eval_file.txt'
 generated_num = 10000
 
+save_every = 5
+default_checkpoint_folder = "./checkpoints"
 
 save_every = 5
 default_checkpoint_folder = "./checkpoints"
@@ -113,6 +116,7 @@ def main():
 
     random.seed(SEED)
     np.random.seed(SEED)
+    tf.set_random_seed(SEED)
     assert START_TOKEN == 0
 
     global_step =tf.Variable(tf.zeros([1], dtype=tf.int32), name="global_step")
@@ -120,7 +124,6 @@ def main():
     increment_global_step_op = tf.assign(global_step, global_step + 1)
     increment_local_step_op = tf.assign(local_step, local_step+1)
     reset_local_op = tf.assign(local_step, [0])
-
 
     gen_data_loader = Gen_Data_loader(BATCH_SIZE)
     likelihood_data_loader = Gen_Data_loader(BATCH_SIZE) # For testing
@@ -130,6 +133,7 @@ def main():
     generator = Generator(vocab_size, BATCH_SIZE, EMB_DIM, HIDDEN_DIM, SEQ_LENGTH, START_TOKEN)
     #import pdb; pdb.set_trace()
     target_params = cPickle.load(open('save/target_params.pkl'))
+    # target_params = cPickle.load(open('save/random_target.pkl'))
     target_lstm = TARGET_LSTM(vocab_size, BATCH_SIZE, EMB_DIM, HIDDEN_DIM, SEQ_LENGTH, START_TOKEN, target_params) # The oracle model
 
     discriminator = Discriminator(sequence_length=20, num_classes=2, vocab_size=vocab_size, embedding_size=dis_embedding_dim,
@@ -200,22 +204,24 @@ def main():
 
         bleu_loss = get_bleu(positive_file, eval_file)
         print bleu_loss
-        
+
         # import pdb; pdb.set_trace()
-        rollout = ROLLOUT(generator, 0.8)
+        # rollout = ROLLOUT(generator, 0.8)
+        rollout = ROLLOUT(generator, 0.)
 
         print '#########################################################################'
         print 'Start Adversarial Training...'
         log.write('adversarial training...\n')
         for total_batch in range(TOTAL_BATCH - sess.run(local_step)):
             if total_batch % save_every == 0:
-                saver.save(sess, default_checkpoint_folder + "/model.ckpt")
+                saver.save(sess, checkpoint_folder + "/model.ckpt")
             # Train the generator for one step
             for it in range(1):
                 samples = generator.generate(sess)
                 rewards = rollout.get_reward(sess, samples, 16, discriminator)
                 print 'rewards are:'
                 print rewards
+
                 feed = {generator.x: samples, generator.rewards: rewards}
                 _ = sess.run(generator.g_updates, feed_dict=feed)
 
@@ -226,6 +232,7 @@ def main():
                 test_loss = target_loss(sess, target_lstm, likelihood_data_loader)
                 buffer = 'epoch:\t' + str(total_batch) + '\tnll:\t' + str(test_loss) + '\n'
                 print 'total_batch: ', total_batch + sess.run(local_step), 'test_loss: ', test_loss
+                #print 'total_batch: ', total_batch, 'test_loss: ', test_loss
                 log.write(buffer)
 
             # Update roll-out parameters
@@ -244,12 +251,11 @@ def main():
                             discriminator.input_x: x_batch,
                             discriminator.input_y: y_batch,
                             discriminator.input_logprob: generator.get_logprobs(sess,x_batch),
+
                             discriminator.dropout_keep_prob: dis_dropout_keep_prob
                         }
                         _ = sess.run(discriminator.train_op, feed)
-
             sess.run(increment_local_step_op)
-
 
     log.close()
 
