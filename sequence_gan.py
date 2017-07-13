@@ -10,6 +10,7 @@ import cPickle
 import getopt
 import sys
 import os.path
+import nltk
 
 
 #########################################################################################
@@ -84,6 +85,25 @@ def pre_train_epoch(sess, trainable_model, data_loader):
         supervised_g_losses.append(g_loss)
 
     return np.mean(supervised_g_losses)
+
+def get_bleu(real_file, generated_file):
+    import pdb; pdb.set_trace()
+    real_data_loader = Gen_Data_loader(BATCH_SIZE) #.reset_pointer()
+    generated_data_loader = Gen_Data_loader(BATCH_SIZE)#.reset_pointer()
+
+    real_data_loader.create_batches(real_file)
+    generated_data_loader.create_batches(generated_file)
+
+    bleu = []
+
+    for batch in xrange(generated_data_loader.num_batch):
+        sampled_batch = generated_data_loader.next_batch()
+        real_batch = real_data_loader.next_batch()
+
+        BLEUscore = nltk.translate.bleu_score.sentence_bleu(sampled_batch, real_batch)
+        bleu.append(BLEUscore)
+
+    return np.mean(bleu)
 
 
 def main():
@@ -178,6 +198,9 @@ def main():
         sess.run(reset_local_op)
     if sess.run(global_step) == 2:
 
+        bleu_loss = get_bleu(positive_file, eval_file)
+        print bleu_loss
+        
         # import pdb; pdb.set_trace()
         rollout = ROLLOUT(generator, 0.8)
 
