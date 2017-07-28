@@ -131,6 +131,14 @@ class Generator(object):
     def init_vector(self, shape):
         return tf.zeros(shape)
 
+    def get_logprobs(self, sess, x):
+        g_probs = sess.run(self.g_predictions, feed_dict={self.x: x})    # batch_size x seq_length x vocab_size
+        #import pdb; pdb.set_trace()
+        temp = (np.arange(g_probs.shape[2]) == x[:, :, None]).astype(int)
+        test2 = np.max(g_probs * temp, axis=2)
+        g_logprobs = np.log(test2)         # batch_size x seq_length
+        return g_logprobs.sum(axis=1)
+
     def create_recurrent_unit(self, params):
         # Weights and Bias for input and hidden tensor
         self.Wi = tf.Variable(self.init_matrix([self.emb_dim, self.hidden_dim]))
