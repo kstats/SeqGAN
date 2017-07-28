@@ -85,7 +85,7 @@ def pre_train_epoch(sess, trainable_model, data_loader):
 
 
 def eval_model(generator, target, test_data_loader, sess):
-    import pdb; pdb.set_trace()
+    #import pdb; pdb.set_trace()
     gen_probs = []
     target_probs = []
     for it in xrange(test_data_loader.num_batch):
@@ -100,7 +100,7 @@ def eval_model(generator, target, test_data_loader, sess):
     diff = 0.
     for i in range(len(target_probs)):
         diff += abs(target_probs[i] - gen_probs[i])
-
+    import pdb; pdb.set_trace()
     return diff / float(len(target_probs))
 
 
