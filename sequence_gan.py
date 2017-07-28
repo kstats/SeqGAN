@@ -7,6 +7,9 @@ from discriminator import Discriminator
 from rollout import ROLLOUT
 from target_lstm import TARGET_LSTM
 import cPickle
+import getopt
+import sys
+import os
 
 #########################################################################################
 #  Generator  Hyper-parameters
@@ -34,6 +37,7 @@ dis_batch_size = 64
 #########################################################################################
 TOTAL_BATCH = 200
 positive_file = 'save/real_data.txt'
+test_file = 'save/test_data.txt'
 negative_file = 'save/generator_sample.txt'
 eval_file = 'save/eval_file.txt'
 generated_num = 10000
@@ -80,6 +84,28 @@ def pre_train_epoch(sess, trainable_model, data_loader):
     return np.mean(supervised_g_losses)
 
 
+def eval_model(generator, target, test_data_loader, sess):
+    import pdb; pdb.set_trace()
+    gen_probs = []
+    target_probs = []
+    for it in xrange(test_data_loader.num_batch):
+        batch = test_data_loader.next_batch()
+        gen_prob = sess.run(generator.get_logprobs, {generator.x: batch})
+        gen_probs.append(gen_prob)
+
+        target_prob = sess.run(target.get_logprobs, {target.x: batch})
+        target_probs.append(target_prob)
+
+
+    diff = 0.
+    for i in range(len(target_probs)):
+        diff += abs(target_probs[i] - gen_probs[i])
+
+    return diff / float(len(target_probs))
+
+
+
+
 def main():
     optlist, args = getopt.gnu_getopt(sys.argv, 'd:')
     opts = dict(optlist)
@@ -96,6 +122,7 @@ def main():
     reset_local_op = tf.assign(local_step, [0])
 
     gen_data_loader = Gen_Data_loader(BATCH_SIZE)
+    test_data_loader = Gen_Data_loader(BATCH_SIZE)
     likelihood_data_loader = Gen_Data_loader(BATCH_SIZE) # For testing
     vocab_size = 5000
     dis_data_loader = Dis_dataloader(BATCH_SIZE)
@@ -127,12 +154,23 @@ def main():
     generate_samples(sess, target_lstm, BATCH_SIZE, generated_num, positive_file)
     gen_data_loader.create_batches(positive_file)
 
+
+
+    #Generates test data
+    generate_samples(sess, target_lstm, BATCH_SIZE, generated_num, test_file)
+    #TODO check necessity
+    test_data_loader.create_batches(test_file)
+
+
+
+
     if sess.run(global_step) == 0:
         #  pre-train generator
         print 'Start pre-training...'
         log.write('pre-training...\n')
         for epoch in xrange(PRE_EPOCH_NUM - sess.run(local_step)):
             loss = pre_train_epoch(sess, generator, gen_data_loader)
+            eval_model(generator, target_lstm, test_data_loader, sess)
             if epoch % 5 == 0:
                 generate_samples(sess, generator, BATCH_SIZE, generated_num, eval_file)
                 likelihood_data_loader.create_batches(eval_file)
