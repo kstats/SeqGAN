@@ -1,5 +1,6 @@
 import tensorflow as tf
 from tensorflow.python.ops import tensor_array_ops, control_flow_ops
+import numpy as np
 
 
 class TARGET_LSTM(object):
