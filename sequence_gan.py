@@ -100,7 +100,7 @@ def eval_model(generator, target, test_data_loader, sess):
     diff = 0.
     for i in range(len(target_probs)):
         diff += abs(target_probs[i] - gen_probs[i])
-    import pdb; pdb.set_trace()
+    #import pdb; pdb.set_trace()
     return diff / float(len(target_probs))
 
 
@@ -170,7 +170,8 @@ def main():
         log.write('pre-training...\n')
         for epoch in xrange(PRE_EPOCH_NUM - sess.run(local_step)):
             loss = pre_train_epoch(sess, generator, gen_data_loader)
-            eval_model(generator, target_lstm, test_data_loader, sess)
+            print "Our loss metric:"
+            print eval_model(generator, target_lstm, test_data_loader, sess)
             if epoch % 5 == 0:
                 generate_samples(sess, generator, BATCH_SIZE, generated_num, eval_file)
                 likelihood_data_loader.create_batches(eval_file)
