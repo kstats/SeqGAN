@@ -91,10 +91,10 @@ def eval_model(generator, target, test_data_loader, sess):
     for it in xrange(test_data_loader.num_batch):
         batch = test_data_loader.next_batch()
         gen_prob = generator.get_logprobs(sess,batch)
-        gen_probs.append(gen_prob)
+        gen_probs.extend(gen_prob)
 
         target_prob = target.get_logprobs(sess,batch)
-        target_probs.append(target_prob)
+        target_probs.extend(target_prob)
 
 
     diff = 0.
