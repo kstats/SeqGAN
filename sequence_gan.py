@@ -94,13 +94,13 @@ def eval_model(generator, target, test_data_loader, sess):
         gen_sum = 0.
         for i in gen_prob:
             gen_sum += i
-        gen_probs.extend(gen_sum)
+        gen_probs.append(gen_sum)
 
         target_prob = target.get_logprobs(sess,batch)
         target_sum = 0.
         for i in target_prob:
             target_sum += i
-        target_probs.extend(target_sum)
+        target_probs.append(target_sum)
 
 
 
