@@ -111,7 +111,7 @@ def eval_model(generator, target, test_data_loader, sess):
 
     kl = 0.
     for i in range(len(target_probs)):
-        kl += target_probs[i] + np.log(target_probs[i] / gen_probs[i])
+        kl += np.exp(target_probs[i]) + target_probs[i] - gen_probs[i]
     return diff / float(len(target_probs)), kl
 
 
