@@ -91,17 +91,28 @@ def eval_model(generator, target, test_data_loader, sess):
     for it in xrange(test_data_loader.num_batch):
         batch = test_data_loader.next_batch()
         gen_prob = generator.get_logprobs(sess,batch)
-        gen_probs.extend(gen_prob)
+        gen_sum = 0.
+        for i in gen_prob:
+            gen_sum += i
+        gen_probs.extend(gen_sum)
 
         target_prob = target.get_logprobs(sess,batch)
-        target_probs.extend(target_prob)
+        target_sum = 0.
+        for i in target_prob:
+            target_sum += i
+        target_probs.extend(target_sum)
+
 
 
     diff = 0.
     for i in range(len(target_probs)):
         diff += abs(target_probs[i] - gen_probs[i])
     #import pdb; pdb.set_trace()
-    return diff / float(len(target_probs))
+
+    kl = 0.
+    for i in range(len(target_probs)):
+        kl += target_probs[i] + np.log(target_probs[i] / gen_probs[i])
+    return diff / float(len(target_probs)), kl
 
 
 
@@ -170,15 +181,31 @@ def main():
         log.write('pre-training...\n')
         for epoch in xrange(PRE_EPOCH_NUM - sess.run(local_step)):
             loss = pre_train_epoch(sess, generator, gen_data_loader)
-            print "Our loss metric:"
-            print eval_model(generator, target_lstm, test_data_loader, sess)
-            if epoch % 5 == 0:
-                generate_samples(sess, generator, BATCH_SIZE, generated_num, eval_file)
-                likelihood_data_loader.create_batches(eval_file)
-                test_loss = target_loss(sess, target_lstm, likelihood_data_loader)
-                print 'pre-train epoch ', epoch, 'test_loss ', test_loss
-                buffer = 'epoch:\t'+ str(epoch) + '\tnll:\t' + str(test_loss) + '\n'
-                log.write(buffer)
+            print "Our loss metric on TEST DATA"
+            diff, kl = eval_model(generator, target_lstm, test_data_loader, sess)
+            print "Absolute value difference:"
+            print diff
+            print "KL divergence:"
+            print kl
+            print
+            print
+
+            print "Our loss metric on TRAIN DATA"
+            diff, kl = eval_model(generator, target_lstm, gen_data_loader, sess)
+            print "Absolute value difference:"
+            print diff
+            print "KL divergence:"
+            print kl
+            print
+            print
+
+        if epoch % 5 == 0:
+            generate_samples(sess, generator, BATCH_SIZE, generated_num, eval_file)
+            likelihood_data_loader.create_batches(eval_file)
+            test_loss = target_loss(sess, target_lstm, likelihood_data_loader)
+            print 'pre-train epoch ', epoch, 'test_loss ', test_loss
+            buffer = 'epoch:\t'+ str(epoch) + '\tnll:\t' + str(test_loss) + '\n'
+            log.write(buffer)
             sess.run(increment_local_step_op)
         sess.run(increment_global_step_op)
         sess.run(reset_local_op)
